@@ -35,34 +35,58 @@ object MainForm: TMainForm
     TabOrder = 0
     TextHint = 'Quick Filter'
     OnChange = edtQuickfilterChange
-    ExplicitLeft = 24
-    ExplicitTop = 144
-    ExplicitWidth = 121
   end
   object pcImageDetails: TPageControl
     Left = 217
     Top = 21
     Width = 567
     Height = 372
-    ActivePage = tsExports
+    ActivePage = tsImports
     Align = alClient
     TabOrder = 2
     object tsExports: TTabSheet
       Caption = 'Exports'
-      ExplicitWidth = 281
-      ExplicitHeight = 165
+      object lbExports: TListBox
+        Left = 0
+        Top = 0
+        Width = 559
+        Height = 344
+        Align = alClient
+        ItemHeight = 13
+        Sorted = True
+        TabOrder = 0
+      end
     end
     object tsImports: TTabSheet
       Caption = 'Imports'
       ImageIndex = 1
-      ExplicitWidth = 281
-      ExplicitHeight = 165
+      object lbImports: TListBox
+        Left = 0
+        Top = 0
+        Width = 559
+        Height = 344
+        Align = alClient
+        ItemHeight = 13
+        Sorted = True
+        TabOrder = 0
+      end
     end
     object tsClients: TTabSheet
       Caption = 'Clients'
       ImageIndex = 2
-      ExplicitWidth = 281
-      ExplicitHeight = 165
+      object lbClients: TListBox
+        Left = 0
+        Top = 0
+        Width = 559
+        Height = 344
+        Align = alClient
+        ItemHeight = 13
+        TabOrder = 0
+        ExplicitLeft = 176
+        ExplicitTop = 40
+        ExplicitWidth = 121
+        ExplicitHeight = 97
+      end
     end
   end
   object MainMenu: TMainMenu

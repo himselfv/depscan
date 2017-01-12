@@ -23,6 +23,9 @@ type
     tsExports: TTabSheet;
     tsImports: TTabSheet;
     tsClients: TTabSheet;
+    lbExports: TListBox;
+    lbImports: TListBox;
+    lbClients: TListBox;
     procedure miExitClick(Sender: TObject);
     procedure miNewScanClick(Sender: TObject);
     procedure miOpenDbClick(Sender: TObject);
@@ -36,10 +39,13 @@ type
     FDb: TDepscanDb;
     FSelectedImage: TImageId;
     procedure ReloadImages;
-    procedure ReloadDetails;
     procedure SetSelectedImage(const AValue: TImageId);
     function LbGetSelectedImage: TImageId;
     procedure LbSetSelectedImage(const AValue: TImageId);
+    procedure ReloadDetails;
+    procedure ReloadExports;
+    procedure ReloadImports;
+    procedure ReloadClients;
   public
     procedure Refresh;
     property SelectedImage: TImageId read FSelectedImage write SetSelectedImage;
@@ -200,7 +206,75 @@ end;
 
 procedure TMainForm.ReloadDetails;
 begin
-  //
+  ReloadExports;
+  ReloadImports;
+  ReloadClients;
+end;
+
+procedure TMainForm.ReloadExports;
+var list: TDepExportList;
+  data: TDepExportData;
+begin
+  lbExports.Clear;
+  if (FDb = nil) or (SelectedImage < 0) then exit;
+
+  list := TDepExportList.Create;
+  lbExports.Items.BeginUpdate;
+  try
+    FDb.GetExports(SelectedImage, list);
+    for data in list do
+      if data.name <> '' then
+        lbExports.Items.Add(data.name + ' ('+ IntToStr(data.ord) + ')')
+      else
+        lbExports.Items.Add(IntToStr(data.ord));
+  finally
+    lbExports.Items.EndUpdate;
+    FreeAndNil(list);
+  end;
+end;
+
+procedure TMainForm.ReloadImports;
+var list: TDepImportList;
+  data: TDepImportData;
+begin
+  lbImports.Clear;
+  if (FDb = nil) or (SelectedImage < 0) then exit;
+
+  list := TDepImportList.Create;
+  lbImports.Items.BeginUpdate;
+  try
+    FDb.GetImports(SelectedImage, list);
+    for data in list do
+      if data.name <> '' then
+        lbImports.Items.Add(data.libname + '@' + data.name)
+      else
+        lbImports.Items.Add(data.libname + '@' + IntToStr(data.ord));
+  finally
+    lbImports.Items.EndUpdate;
+    FreeAndNil(list);
+  end;
+end;
+
+procedure TMainForm.ReloadClients;
+var list: TDepCallerList;
+  data: TDepCallerData;
+begin
+  lbClients.Clear;
+  if (FDb = nil) or (SelectedImage < 0) then exit;
+
+  list := TDepCallerList.Create;
+  lbClients.Items.BeginUpdate;
+  try
+    FDb.GetCallers(SelectedImage, list);
+    for data in list do
+      if data.name <> '' then
+        lbClients.Items.Add(FDb.GetImageName(data.image) + '@' + data.name)
+      else
+        lbClients.Items.Add(FDb.GetImageName(data.image) + '@' + IntToStr(data.ord));
+  finally
+    lbClients.Items.EndUpdate;
+    FreeAndNil(list);
+  end;
 end;
 
 

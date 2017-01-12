@@ -5,14 +5,36 @@ uses SysUtils, Generics.Collections, sqlite3;
 
 type
   TImageId = int64;
+  TImageIdList = TList<TImageId>;
 
   TDepImageData = record
     id: TImageId;
     name: string;
     path: string;
   end;
-
   TDepImageList = TList<TDepImageData>;
+
+  TDepExportData = record
+    ord: integer;
+    name: string;
+  end;
+  TDepExportList = TList<TDepExportData>;
+
+  TDepImportData = record
+    libname: string;
+    ord: integer;
+    name: string;
+  end;
+  TDepImportList = TList<TDepImportData>;
+
+  TDepCallerData = record
+    image: TImageId;
+    ord: integer;
+    name: string;
+  end;
+  TDepCallerList = TList<TDepCallerData>;
+
+  TRowFunction = reference to procedure;
 
   TDepscanDb = class
   protected
@@ -21,25 +43,36 @@ type
     StmAddExport: PSQLite3Stmt;
     StmAddImport: PSQLite3Stmt;
     StmAddLink: PSQLite3Stmt;
+    StmGetImage: PSQLite3Stmt;
     procedure InitDb;
     function GetLastSqliteError: string;
     procedure RaiseLastSqliteError;
+    procedure Query(stmt: PSQLite3Stmt; rowFunc: TRowFunction);
   public
     constructor Create(const AFilename: string);
     destructor Destroy; override;
 
     function PrepareStatement(const ASql: string): PSQLite3Stmt;
     procedure Exec(const ASql: string);
-    procedure AddExport(const AImage: TImageId; const AOrdinal: integer; const AName: string);
-    procedure AddImport(const AImage: TImageId; const ALibName: string; const AOrdinal: integer; const AName: string = '');
-    procedure AddLink(const AImage, ADepImage: TImageId; const AOrdinal: integer; const AName: string);
 
   protected
     procedure QueryImages(stmt: PSQLite3Stmt; AList: TDepImageList);
   public
     function AddImage(const AFilename: string): TImageId;
+    function GetImageName(const AImage: TImageId): string;
     procedure GetAllImages(AList: TDepImageList);
     procedure FindImages(const AQuery: string; AList: TDepImageList);
+
+  public
+    procedure AddExport(const AImage: TImageId; const AOrdinal: integer; const AName: string);
+    procedure GetExports(const AImage: TImageId; AList: TDepExportList);
+
+    procedure AddImport(const AImage: TImageId; const ALibName: string; const AOrdinal: integer; const AName: string = '');
+    procedure GetImports(const AImage: TImageId; AList: TDepImportList);
+
+  public
+    procedure AddLink(const AImage, ADepImage: TImageId; const AOrdinal: integer; const AName: string);
+    procedure GetCallers(const AImage: TImageId; AList: TDepCallerList);
 
   end;
 
@@ -141,6 +174,7 @@ begin
   StmAddExport := PrepareStatement('INSERT INTO exports (image,ordinal,name) VALUES (?,?,?)');
   StmAddImport := PrepareStatement('INSERT INTO imports (image,ordinal,name) VALUES (?,?,?)');
   StmAddLink := PrepareStatement('INSERT INTO links (image,depimage,ordinal,name) VALUES (?,?,?,?)');
+  StmGetImage := PrepareStatement('SELECT * FROM images WHERE id=?');
 end;
 
 function TDepscanDb.AddImage(const AFilename: string): TImageId;
@@ -153,21 +187,38 @@ begin
   Result := sqlite3_last_insert_rowid(FDb);
 end;
 
-procedure TDepscanDb.QueryImages(stmt: PSQLite3Stmt; AList: TDepImageList);
+function TDepScanDb.GetImageName(const AImage: TImageId): string;
+begin
+  sqlite3_bind_int64(StmGetImage, 1, AImage);
+  if sqlite3_step(StmGetImage) <> SQLITE_ROW then
+    RaiseLastSQLiteError();
+  Result := sqlite3_column_text16(StmGetImage, 1);
+  sqlite3_reset(StmGetImage);
+end;
+
+
+procedure TDepscanDb.Query(stmt: PSQLite3Stmt; rowFunc: TRowFunction);
 var res: integer;
-  data: TDepImageData;
 begin
   res := sqlite3_step(stmt);
   while res = SQLITE_ROW do begin
-    data.id := sqlite3_column_int64(stmt, 0);
-    data.name := sqlite3_column_text16(stmt, 1);
-    data.path := sqlite3_column_text16(stmt, 2);
-    AList.Add(data);
+    rowFunc();
     res := sqlite3_step(stmt);
   end;
   if res <> SQLITE_DONE then
     RaiseLastSQLiteError;
   sqlite3_finalize(stmt); //"reset", if reusing
+end;
+
+procedure TDepscanDb.QueryImages(stmt: PSQLite3Stmt; AList: TDepImageList);
+var data: TDepImageData;
+begin
+  Query(stmt, procedure begin
+    data.id := sqlite3_column_int64(stmt, 0);
+    data.name := sqlite3_column_text16(stmt, 1);
+    data.path := sqlite3_column_text16(stmt, 2);
+    AList.Add(data);
+  end);
 end;
 
 procedure TDepscanDb.GetAllImages(AList: TDepImageList);
@@ -195,15 +246,42 @@ begin
   sqlite3_reset(StmAddExport);
 end;
 
+procedure TDepscanDb.GetExports(const AImage: TImageId; AList: TDepExportList);
+var stmt: PSQLite3Stmt;
+  data: TDepExportData;
+begin
+  stmt := PrepareStatement('SELECT * FROM exports WHERE image=?');
+  sqlite3_bind_int64(stmt, 1, AImage);
+  Query(stmt, procedure begin
+    data.ord := sqlite3_column_int64(stmt, 1);
+    data.name := sqlite3_column_text16(stmt, 2);
+    AList.Add(data);
+  end);
+end;
+
 procedure TDepscanDb.AddImport(const AImage: TImageId; const ALibName: string; const AOrdinal: integer; const AName: string = '');
 begin
-  sqlite3_bind_int64(StmAddExport, 1, AImage);
-  sqlite3_bind_str(StmAddExport, 2, ALibName);
-  sqlite3_bind_int64(StmAddExport, 3, AOrdinal);
-  sqlite3_bind_str(StmAddExport, 4, AName);
-  if sqlite3_step(StmAddExport) <> SQLITE_DONE then
+  sqlite3_bind_int64(StmAddImport, 1, AImage);
+  sqlite3_bind_str(StmAddImport, 2, ALibName);
+  sqlite3_bind_int64(StmAddImport, 3, AOrdinal);
+  sqlite3_bind_str(StmAddImport, 4, AName);
+  if sqlite3_step(StmAddImport) <> SQLITE_DONE then
     RaiseLastSQLiteError();
-  sqlite3_reset(StmAddExport);
+  sqlite3_reset(StmAddImport);
+end;
+
+procedure TDepscanDb.GetImports(const AImage: TImageId; AList: TDepImportList);
+var stmt: PSQLite3Stmt;
+  data: TDepImportData;
+begin
+  stmt := PrepareStatement('SELECT * FROM imports WHERE image=?');
+  sqlite3_bind_int64(stmt, 1, AImage);
+  Query(stmt, procedure begin
+    data.libname := sqlite3_column_text16(stmt, 1);
+    data.ord := sqlite3_column_int64(stmt, 2);
+    data.name := sqlite3_column_text16(stmt, 3);
+    AList.Add(data);
+  end);
 end;
 
 procedure TDepscanDb.AddLink(const AImage, ADepImage: TImageId; const AOrdinal: integer; const AName: string);
@@ -216,6 +294,21 @@ begin
     RaiseLastSQLiteError();
   sqlite3_reset(StmAddLink);
 end;
+
+procedure TDepscanDb.GetCallers(const AImage: TImageId; AList: TDepCallerList);
+var stmt: PSQLite3Stmt;
+  data: TDepCallerData;
+begin
+  stmt := PrepareStatement('SELECT image, ordinal, name FROM links WHERE depimage=?');
+  sqlite3_bind_int64(stmt, 1, AImage);
+  Query(stmt, procedure begin
+    data.image := sqlite3_column_int64(stmt, 0);
+    data.ord := sqlite3_column_int64(stmt, 1);
+    data.name := sqlite3_column_text16(stmt, 2);
+    AList.Add(data);
+  end);
+end;
+
 
 
 end.
