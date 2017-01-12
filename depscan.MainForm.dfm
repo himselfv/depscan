@@ -10,16 +10,61 @@ object MainForm: TMainForm
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  Padding.Left = 3
-  Padding.Top = 3
-  Padding.Right = 3
-  Padding.Bottom = 3
   Menu = MainMenu
   OldCreateOrder = False
   OnDestroy = FormDestroy
   OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
+  object lbImages: TListBox
+    Left = 0
+    Top = 21
+    Width = 217
+    Height = 372
+    Align = alLeft
+    ItemHeight = 13
+    TabOrder = 1
+    OnClick = lbImagesClick
+  end
+  object edtQuickfilter: TEdit
+    Left = 0
+    Top = 0
+    Width = 784
+    Height = 21
+    Align = alTop
+    TabOrder = 0
+    TextHint = 'Quick Filter'
+    OnChange = edtQuickfilterChange
+    ExplicitLeft = 24
+    ExplicitTop = 144
+    ExplicitWidth = 121
+  end
+  object pcImageDetails: TPageControl
+    Left = 217
+    Top = 21
+    Width = 567
+    Height = 372
+    ActivePage = tsExports
+    Align = alClient
+    TabOrder = 2
+    object tsExports: TTabSheet
+      Caption = 'Exports'
+      ExplicitWidth = 281
+      ExplicitHeight = 165
+    end
+    object tsImports: TTabSheet
+      Caption = 'Imports'
+      ImageIndex = 1
+      ExplicitWidth = 281
+      ExplicitHeight = 165
+    end
+    object tsClients: TTabSheet
+      Caption = 'Clients'
+      ImageIndex = 2
+      ExplicitWidth = 281
+      ExplicitHeight = 165
+    end
+  end
   object MainMenu: TMainMenu
     Left = 16
     Top = 16

@@ -4,7 +4,7 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Menus, Depscan.Db;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Menus, Depscan.Db, Vcl.ComCtrls;
 
 type
   TMainForm = class(TForm)
@@ -17,18 +17,32 @@ type
     SaveDialog: TSaveDialog;
     OpenDialog: TOpenDialog;
     miCloseDb: TMenuItem;
+    lbImages: TListBox;
+    edtQuickfilter: TEdit;
+    pcImageDetails: TPageControl;
+    tsExports: TTabSheet;
+    tsImports: TTabSheet;
+    tsClients: TTabSheet;
     procedure miExitClick(Sender: TObject);
     procedure miNewScanClick(Sender: TObject);
     procedure miOpenDbClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure miCloseDbClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure edtQuickfilterChange(Sender: TObject);
+    procedure lbImagesClick(Sender: TObject);
 
   protected
     FDb: TDepscanDb;
-
+    FSelectedImage: TImageId;
+    procedure ReloadImages;
+    procedure ReloadDetails;
+    procedure SetSelectedImage(const AValue: TImageId);
+    function LbGetSelectedImage: TImageId;
+    procedure LbSetSelectedImage(const AValue: TImageId);
   public
     procedure Refresh;
+    property SelectedImage: TImageId read FSelectedImage write SetSelectedImage;
 
   end;
 
@@ -52,6 +66,7 @@ end;
 
 procedure TMainForm.FormShow(Sender: TObject);
 begin
+  FSelectedImage := 0;
   Refresh;
 end;
 
@@ -111,8 +126,81 @@ end;
 procedure TMainForm.Refresh;
 begin
   miCloseDb.Enabled := FDb <> nil;
+  ReloadImages;
+  ReloadDetails;
+end;
 
-//TODO:
+procedure TMainForm.edtQuickfilterChange(Sender: TObject);
+begin
+  ReloadImages;
+end;
+
+procedure TMainForm.ReloadImages;
+var AImages: TDepImageList;
+  data: TDepImageData;
+  oldImageId: TImageId;
+begin
+  oldImageId := LbGetSelectedImage;
+  if FDb = nil then begin
+    lbImages.Clear;
+    exit;
+  end;
+
+  AImages := TDepImageList.Create;
+  try
+    if edtQuickFilter.Text <> '' then
+      FDb.FindImages(edtQuickfilter.Text, AImages)
+    else
+      FDb.GetAllImages(AImages);
+    lbImages.Items.BeginUpdate;
+    try
+      lbImages.Clear; //clear in update to prevent flicker
+      for data in AImages do
+        lbImages.Items.AddObject(data.name, TObject(data.id));
+    finally
+      lbImages.Items.EndUpdate;
+    end;
+  finally
+    FreeAndNil(AImages);
+  end;
+
+  LbSetSelectedImage(oldImageId);
+end;
+
+procedure TMainForm.lbImagesClick(Sender: TObject);
+begin
+  SelectedImage := LbGetSelectedImage;
+end;
+
+function TMainForm.LbGetSelectedImage: TImageId;
+begin
+  if lbImages.ItemIndex < 0 then
+    Result := -1
+  else
+    Result := TImageId(lbImages.Items.Objects[lbImages.ItemIndex]);
+end;
+
+procedure TMainForm.LbSetSelectedImage(const AValue: TImageId);
+var i: integer;
+begin
+  for i := 0 to lbImages.Count-1 do
+    if TImageId(lbImages.Items.Objects[i]) = AValue then begin
+      lbImages.ItemIndex := i;
+      exit;
+    end;
+  lbImages.ItemIndex := -1;
+end;
+
+procedure TMainForm.SetSelectedImage(const AValue: TImageId);
+begin
+  if FSelectedImage = AValue then exit;
+  FSelectedImage := AValue;
+  ReloadDetails;
+end;
+
+procedure TMainForm.ReloadDetails;
+begin
+  //
 end;
 
 

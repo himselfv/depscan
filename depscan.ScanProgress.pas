@@ -30,6 +30,9 @@ type
   TScanProgressForm = class(TForm)
     lblProgress: TLabel;
     mmLog: TMemo;
+    lbMissingImages: TListBox;
+    lbMissingFunctions: TListBox;
+    Label1: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
 
@@ -59,6 +62,8 @@ type
   protected
     FImages: TObjectList<TImageData>;
     FImage: TImageData; //current image
+    FMissingImages: TStringList;
+    FMissingFunctions: TStringList;
     procedure AddExport(const AOrdinal: integer; const AName: string);
     procedure AddImport(const ALibName: string; const AOrdinal: integer; const AName: string = '');
 
@@ -85,10 +90,16 @@ begin
   FFolders := TStringList.Create;
   FExts := TStringList.Create;
   FImages := TObjectList<TImageData>.Create;
+  FMissingImages := TStringList.Create;
+  FMissingImages.Sorted := true; //hashed
+  FMissingFunctions := TStringList.Create;
+  FMissingFunctions.Sorted := true;
 end;
 
 procedure TScanProgressForm.FormDestroy(Sender: TObject);
 begin
+  FreeAndNil(FMissingImages);
+  FreeAndNil(FMissingFunctions);
   FreeAndNil(FImages);
   FreeAndNil(FExts);
   FreeAndNil(FFolders);
@@ -144,6 +155,8 @@ var files: TFilenameArray;
   fname: string;
 begin
   FImages.Clear;
+  FMissingImages.Clear;
+  FMissingFunctions.Clear;
 
   Self.Show;
   Self.Repaint;
@@ -176,6 +189,10 @@ begin
   Db.Exec('COMMIT');
   StartProgress('Done');
 
+  lbMissingImages.Items.Assign(FMissingImages);
+  lbMissingFunctions.Items.Assign(FMissingFunctions);
+
+  Self.Hide;
   Self.ShowModal;
 
   Result := FDb;
@@ -396,29 +413,51 @@ end;
 function TScanProgressForm.ResolveImport(imp: PImportData; out idx: integer): TImageData;
 var i, j: integer;
   img: TImageData;
+  imageFound: boolean;
+  sig: string;
 begin
   Result := nil;
+  if FMissingImages.IndexOfName(imp.libname) >= 0 then
+    exit;
+
+  if imp.name = '' then
+    sig := imp.libname+'@'+IntToStr(imp.ord)
+  else
+    sig := imp.libname+'@'+imp.name;
+  if FMissingFunctions.IndexOfName(sig) >= 0 then
+    exit;
+
   idx := 0;
+  imageFound := false;
 
   for i := 0 to FImages.Count-1 do begin
     img := FImages[i];
-    if SameStr(img.name, imp.libname) then
-      if imp.name <> '' then begin
-        for j := 0 to Length(img.exp)-1 do
-          if SameText(img.exp[j].name, imp.name) then begin
-            Result := img;
-            idx := j;
-            exit;
-          end;
-      end else begin
-        for j := 0 to Length(img.exp)-1 do
-          if img.exp[j].ord=imp.ord then begin
-            Result := img;
-            idx := j;
-            exit;
-          end;
-      end;
+    if not SameStr(img.name, imp.libname) then
+      continue;
+
+    imageFound := true;
+    if imp.name <> '' then begin
+      for j := 0 to Length(img.exp)-1 do
+        if SameText(img.exp[j].name, imp.name) then begin
+          Result := img;
+          idx := j;
+          exit;
+        end;
+    end else begin
+      for j := 0 to Length(img.exp)-1 do
+        if img.exp[j].ord=imp.ord then begin
+          Result := img;
+          idx := j;
+          exit;
+        end;
+    end;
+
   end;
+
+  if not imageFound then
+    FMissingImages.Add(imp.libname)
+  else
+    FMissingFunctions.Add(sig);
 end;
 
 

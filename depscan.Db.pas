@@ -1,10 +1,18 @@
 unit depscan.Db;
 
 interface
-uses SysUtils, sqlite3;
+uses SysUtils, Generics.Collections, sqlite3;
 
 type
   TImageId = int64;
+
+  TDepImageData = record
+    id: TImageId;
+    name: string;
+    path: string;
+  end;
+
+  TDepImageList = TList<TDepImageData>;
 
   TDepscanDb = class
   protected
@@ -22,10 +30,16 @@ type
 
     function PrepareStatement(const ASql: string): PSQLite3Stmt;
     procedure Exec(const ASql: string);
-    function AddImage(const AFilename: string): TImageId;
     procedure AddExport(const AImage: TImageId; const AOrdinal: integer; const AName: string);
     procedure AddImport(const AImage: TImageId; const ALibName: string; const AOrdinal: integer; const AName: string = '');
     procedure AddLink(const AImage, ADepImage: TImageId; const AOrdinal: integer; const AName: string);
+
+  protected
+    procedure QueryImages(stmt: PSQLite3Stmt; AList: TDepImageList);
+  public
+    function AddImage(const AFilename: string): TImageId;
+    procedure GetAllImages(AList: TDepImageList);
+    procedure FindImages(const AQuery: string; AList: TDepImageList);
 
   end;
 
@@ -137,6 +151,38 @@ begin
     RaiseLastSQLiteError();
   sqlite3_reset(StmAddImage);
   Result := sqlite3_last_insert_rowid(FDb);
+end;
+
+procedure TDepscanDb.QueryImages(stmt: PSQLite3Stmt; AList: TDepImageList);
+var res: integer;
+  data: TDepImageData;
+begin
+  res := sqlite3_step(stmt);
+  while res = SQLITE_ROW do begin
+    data.id := sqlite3_column_int64(stmt, 0);
+    data.name := sqlite3_column_text16(stmt, 1);
+    data.path := sqlite3_column_text16(stmt, 2);
+    AList.Add(data);
+    res := sqlite3_step(stmt);
+  end;
+  if res <> SQLITE_DONE then
+    RaiseLastSQLiteError;
+  sqlite3_finalize(stmt); //"reset", if reusing
+end;
+
+procedure TDepscanDb.GetAllImages(AList: TDepImageList);
+var stmt: PSQLite3Stmt;
+begin
+  stmt := PrepareStatement('SELECT * FROM images');
+  QueryImages(stmt, AList);
+end;
+
+procedure TDepscanDb.FindImages(const AQuery: string; AList: TDepImageList);
+var stmt: PSQLite3Stmt;
+begin
+  stmt := PrepareStatement('SELECT * FROM images WHERE name LIKE ?');
+  sqlite3_bind_str(stmt, 1, '%'+AQuery+'%');
+  QueryImages(stmt, AList);
 end;
 
 procedure TDepscanDb.AddExport(const AImage: TImageId; const AOrdinal: integer; const AName: string);
