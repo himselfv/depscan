@@ -1,0 +1,2 @@
+Select all those who import:
+SELECT baseimages.name, links.* FROM images, links, images AS baseimages WHERE images.name="advpack.dll" AND links.depimage=images.id AND baseimages.id=links.image
